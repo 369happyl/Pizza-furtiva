@@ -1,224 +1,277 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-br">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Pizza Survival 2026 - Corrigido</title>
-  <style>
-    body { margin: 0; overflow: hidden; background-color: #87ceeb; font-family: 'Arial', sans-serif; touch-action: manipulation; }
-
-    /* --- JOGADOR --- */
-    #player {
-      width: 55px; height: 55px; background-color: #f5deb0; border-radius: 50%;
-      position: absolute; left: 50px; border: 4px solid #c29b61; z-index: 50;
-    }
-    .calabresa { width: 12px; height: 12px; background: red; border-radius: 50%; position: absolute; border: 1px solid #b30000; }
-    .azeitona { width: 4px; height: 4px; background: #333; border-radius: 50%; position: absolute; }
-    .queijo-p { width: 18px; height: 18px; background: #f1c232; position: absolute; border-radius: 3px; }
-
-    /* --- OBSTÁCULOS --- */
-    .nuvem {
-      width: 80px; height: 45px; background: white; border-radius: 50px;
-      position: absolute; box-shadow: 25px 15px 0 10px white, -15px 10px 0 5px white; z-index: 5;
-    }
-
-    /* Nuvem de Chuva Malvada */
-    .chuva {
-      background: #4a4a4a !important;
-      box-shadow: 25px 15px 0 10px #4a4a4a, -15px 10px 0 5px #4a4a4a !important;
-    }
-    .chuva::before, .chuva::after { content: 'v'; color: red; font-weight: bold; font-size: 14px; position: absolute; top: 15px; }
-    .chuva::before { left: 25px; transform: rotate(-20deg); }
-    .chuva::after { right: -5px; transform: rotate(20deg); }
-    
-    .raio { position: absolute; width: 10px; height: 20px; background: yellow; clip-path: polygon(50% 0%, 0% 60%, 40% 50%, 10% 100%, 100% 40%, 60% 50%); bottom: -30px; left: 30px; }
-
-    .passaro { width: 35px; height: 20px; background: #000; position: absolute; z-index: 15; clip-path: polygon(0% 50%, 40% 0%, 50% 50%, 60% 0%, 100% 50%, 50% 100%); animation: baterAsa 0.2s infinite alternate; }
-
-    .bola { width: 30px; height: 30px; border-radius: 50%; position: absolute; z-index: 60; }
-
-    .aviao {
-      width: 120px; height: 40px; background: white; position: absolute; z-index: 40;
-      border-radius: 20px 50px 20px 20px; border-bottom: 5px solid #ccc;
-    }
-    .aviao::before { content: ''; position: absolute; width: 40px; height: 60px; background: #ddd; top: -10px; left: 40px; clip-path: polygon(30% 0%, 70% 0%, 100% 100%, 0% 100%); z-index: -1; }
-
-    @keyframes baterAsa { from { transform: scaleY(1.2); } to { transform: scaleY(0.4); } }
-
-    #ui { position: absolute; top: 20px; left: 20px; font-size: 28px; color: white; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); z-index: 150; }
-
-    .msg { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: white; background: rgba(0,0,0,0.9); padding: 30px; border-radius: 20px; display: none; z-index: 200; }
-    button { padding: 12px 25px; font-size: 18px; cursor: pointer; background: #ff6600; color: white; border: none; border-radius: 10px; }
-  </style>
-</head>
-<body>
-
-  <div id="ui">XP: <span id="xp">0</span> <br> <small id="level-msg" style="color: #ffeb3b;"></small></div>
-
-  <div id="player">
-    <div class="queijo-p" style="top:10px; left:25px;"></div>
-    <div class="queijo-p" style="top:30px; left:10px;"></div>
-    <div class="calabresa" style="top:5px; left:15px;"></div>
-    <div class="calabresa" style="bottom:10px; right:10px;"></div>
-    <div class="azeitona" style="top:25px; left:35px;"></div>
-    <div class="azeitona" style="bottom:15px; left:15px;"></div>
-  </div>
-
-  <div id="game-over" class="msg">
-    <h1 id="death-title">GAME OVER!</h1>
-    <p id="death-msg"></p>
-    <button onclick="location.reload()">RECOMEÇAR</button>
-  </div>
-
-  <script>
-    const player = document.getElementById('player');
-    const xpDisplay = document.getElementById('xp');
-    const levelMsg = document.getElementById('level-msg');
-    const gameOverMsg = document.getElementById('game-over');
-    
-    let playerY = 250;
-    let velocity = 0;
-    let gravity = 0.25;
-    let xp = 0;
-    let isGameOver = false;
-    let obstacles = [];
-    let aviaoPassou = false;
-
-    function jump(e) {
-      if (isGameOver) return;
-      if (e && e.cancelable) e.preventDefault();
-      velocity = -6.5;
-    }
-
-    window.addEventListener('mousedown', jump);
-    window.addEventListener('touchstart', jump, { passive: false });
-
-    function createObstacle() {
-      if (isGameOver) return;
-
-      if (xp >= 400 && !aviaoPassou) {
-        aviaoPassou = true;
-        const av = document.createElement('div');
-        av.className = 'aviao';
-        av.style.left = window.innerWidth + 'px';
-        av.style.top = '100px';
-        av.speed = 12;
-        document.body.appendChild(av);
-        obstacles.push(av);
-        levelMsg.innerText = "CUIDADO: AVIÃO!";
-        return;
-      }
-
-      const obj = document.createElement('div');
-      let type = "nuvem", speed = 3, vy = 0;
-      const rand = Math.random();
-
-      // Define o tipo com base no XP
-      if (xp >= 300) {
-        levelMsg.innerText = "NÍVEL INSANO!";
-        if (rand > 0.5) { type = "bola"; speed = 7 + Math.random() * 5; vy = (Math.random() - 0.5) * 8; }
-        else { type = rand > 0.2 ? "chuva" : "passaro"; speed = type === "chuva" ? 9 : 6; }
-      } else if (xp >= 200) {
-        levelMsg.innerText = "TEMPESTADE!";
-        type = rand > 0.5 ? "chuva" : "passaro";
-        speed = type === "chuva" ? 9 : 6;
-      } else if (xp >= 100) {
-        levelMsg.innerText = "PÁSSAROS!";
-        type = rand > 0.6 ? "passaro" : "nuvem";
-        speed = type === "passaro" ? 6 : 3;
-      }
-
-      // CORREÇÃO DO BUG: Adiciona classes corretamente
-      if (type === "nuvem" || type === "chuva") {
-        obj.classList.add('nuvem');
-        if (type === "chuva") {
-          obj.classList.add('chuva');
-          const raio = document.createElement('div');
-          raio.className = 'raio';
-          obj.appendChild(raio);
-        }
-      } else {
-        obj.classList.add(type);
-      }
-      
-      obj.style.left = window.innerWidth + 'px';
-      obj.style.top = Math.random() * (window.innerHeight - 80) + 'px';
-      obj.speed = speed;
-      obj.vy = vy;
-      
-      document.body.appendChild(obj);
-      obstacles.push(obj);
-    }
-
-    function update() {
-      if (isGameOver) return;
-
-      velocity += gravity;
-      playerY += velocity;
-
-      if (playerY > window.innerHeight - 60) { endGame("CHÃO"); return; }
-      if (playerY < 0) { playerY = 0; velocity = 0; }
-      player.style.top = playerY + 'px';
-
-      obstacles.forEach((ob, index) => {
-        let obX = parseFloat(ob.style.left);
-        let obY = parseFloat(ob.style.top);
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pizza Adventure: Sky Edition</title>
+    <style>
+        body { margin: 0; padding: 0; overflow: hidden; font-family: 'Arial', sans-serif; user-select: none; background: #87ceeb; }
+        #viewport { position: relative; width: 100vw; height: 100vh; overflow: hidden; }
+        #world { position: absolute; height: 100vh; }
         
-        obX -= ob.speed;
-        if (ob.vy) obY += ob.vy;
+        .surface-bg { background: #87ceeb; }
+        .cave-bg { background: #1a1a1a; }
+        .sky-bg { background: #add8e6; } /* Azul claro como pedido */
+        
+        #ground { position: absolute; bottom: 0; width: 100%; height: 60px; background: #4CAF50; border-top: 6px solid #2E7D32; z-index: 10; }
+        .cave-ground { background: #333 !important; border-top: 6px solid #111 !important; }
 
-        ob.style.left = obX + 'px';
-        ob.style.top = obY + 'px';
+        #hud { position: fixed; top: 20px; left: 20px; z-index: 1000; color: white; text-shadow: 2px 2px 4px #000; }
+        .life-container { display: flex; gap: 5px; margin-top: 5px; font-size: 25px; }
 
-        if (obX < 40 && !ob.passed) {
-          xp += 10;
-          xpDisplay.innerText = xp;
-          ob.passed = true;
+        .controls { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); display: flex; gap: 20px; z-index: 1000; }
+        .btn { width: 70px; height: 70px; background: rgba(255, 255, 255, 0.4); border: 3px solid #333; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 30px; }
+
+        #game-over { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 2000; color: white; }
+
+        /* Elementos Cenário */
+        .mountain { position: absolute; bottom: 60px; width: 600px; height: 700px; background: #78909c; clip-path: polygon(50% 0%, 0% 100%, 100% 100%); z-index: 5; }
+        .tree { position: absolute; bottom: 60px; width: 30px; height: 60px; background: #5D4037; z-index: 5; }
+        .tree::after { content: ''; position: absolute; bottom: 40px; left: -25px; width: 80px; height: 80px; background: #2E7D32; border-radius: 50%; }
+        .pipe { position: absolute; bottom: 60px; width: 80px; height: 100px; background: #2e7d32; border: 4px solid #1b5e20; z-index: 20; }
+        .spike { position: absolute; bottom: 60px; width: 40px; height: 40px; background: #757575; clip-path: polygon(50% 0%, 0% 100%, 100% 100%); z-index: 15; }
+        .platform { position: absolute; background: #8d6e63; border: 3px solid #5d4037; border-radius: 5px; z-index: 15; }
+        
+        #player { width: 60px; height: 60px; background: #f5deb0; border-radius: 50%; position: absolute; border: 4px solid #c29b61; z-index: 100; }
+        .mio { width: 10px; height: 10px; background: red; border-radius: 50%; position: absolute; }
+        
+        .enemy { width: 45px; height: 40px; background: #b71c1c; border-radius: 8px; position: absolute; z-index: 50; }
+        
+        /* CSS DA NUVEM MELHORADO */
+        .nuvem { 
+            position: absolute; width: 100px; height: 40px; background: #fff; border-radius: 50px; z-index: 50; 
+            box-shadow: 20px 20px 0 -5px #fff, -20px 10px 0 -5px #fff; /* Cria o efeito de "bolinhas" da nuvem */
+        }
+        .nuvem.cinza { background: #999; box-shadow: 20px 20px 0 -5px #999, -20px 10px 0 -5px #999; }
+        
+        .coin { width: 25px; height: 25px; background: gold; border-radius: 50%; position: absolute; border: 3px solid #daa520; z-index: 40; }
+    </style>
+</head>
+<body class="surface-bg" onclick="handleJump()">
+
+    <div id="hud">
+        <div>Moedas: <span id="score-val">0</span> | <span id="loc">Superfície</span></div>
+        <div class="life-container" id="lives-display">❤️❤️❤️</div>
+    </div>
+
+    <div class="controls">
+        <div id="btnLeft" class="btn">◀</div>
+        <div id="btnUp" class="btn">▲</div>
+        <div id="btnRight" class="btn">▶</div>
+    </div>
+
+    <div id="game-over">
+        <h1 id="death-msg">GAME OVER</h1>
+        <button id="retry-btn" style="padding:15px; cursor:pointer; font-weight:bold;">TENTAR DE NOVO</button>
+    </div>
+
+    <div id="viewport">
+        <div id="world">
+            <div id="ground"></div>
+            <div id="player">
+                <div class="mio" style="top:8px; left:25px"></div>
+                <div class="mio" style="top:25px; left:8px"></div>
+                <div class="mio" style="top:25px; right:8px"></div>
+                <div class="mio" style="bottom:8px; left:25px"></div>
+            </div>
+        </div>
+    </div>
+
+<script>
+    const world = document.getElementById('world');
+    const player = document.getElementById('player');
+    const livesDisplay = document.getElementById('lives-display');
+    const scoreVal = document.getElementById('score-val');
+    
+    let posX = 150, posY = 60, velY = 0, velX = 0, score = 0, lives = 3;
+    let isAlive = true, isInvincible = false, isJumping = false;
+    let currentScene = 'surface', checkpoint = 'surface';
+    let keys = { left: false, right: false };
+    let worldWidth = 8000;
+    const gravity = 0.55, jumpForce = 15, speed = 6;
+
+    function updateHUD() {
+        livesDisplay.innerText = "❤️".repeat(lives > 0 ? lives : 0);
+        scoreVal.innerText = score;
+    }
+
+    function clearWorld() {
+        const items = world.querySelectorAll('.enemy, .platform, .tree, .mountain, .pipe, .spike, .nuvem, .coin');
+        items.forEach(item => item.remove());
+    }
+
+    function buildSurface() {
+        currentScene = 'surface'; checkpoint = 'surface'; worldWidth = 8000;
+        world.style.width = worldWidth + "px";
+        clearWorld(); document.body.className = 'surface-bg';
+        document.getElementById('ground').style.display = 'block';
+        document.getElementById('ground').className = '';
+        document.getElementById('loc').innerText = "Superfície";
+        posX = 150; posY = 60; velY = 0; velX = 0;
+
+        let m = document.createElement('div'); m.className = 'mountain'; m.style.left = '4000px'; world.appendChild(m);
+        let p = document.createElement('div'); p.className = 'pipe'; p.style.left = '7800px'; world.appendChild(p);
+
+        for(let i=0; i<15; i++) {
+            let t = document.createElement('div'); t.className = 'tree'; t.style.left = (500 + i * 500) + 'px'; world.appendChild(t);
+        }
+        for(let i=0; i<30; i++) {
+            createPlat(800 + i*500, 200, 120);
+            let c = document.createElement('div'); c.className = 'coin'; c.style.left = (850 + i*500) + 'px'; c.style.bottom = '250px'; world.appendChild(c);
+            if(i % 3 === 0) createEnemy(1200 + i*450, 60, '#b71c1c');
+        }
+    }
+
+    function buildCave() {
+        currentScene = 'cave'; checkpoint = 'cave'; worldWidth = 8000;
+        world.style.width = worldWidth + "px";
+        clearWorld(); document.body.className = 'cave-bg';
+        document.getElementById('ground').style.display = 'block';
+        document.getElementById('ground').className = 'cave-ground';
+        document.getElementById('loc').innerText = "Caverna";
+        posX = 150; posY = 400; velY = 0; velX = 0;
+        
+        let p = document.createElement('div'); p.className = 'pipe'; p.style.left = '7800px'; world.appendChild(p);
+        for(let i=0; i<35; i++) {
+            let s = document.createElement('div'); s.className = 'spike'; s.style.left = (600 + i * 350) + 'px'; world.appendChild(s);
+            createPlat(300 + i*400, 200 + (i%2)*150, 150);
+            if(i % 4 === 0) createEnemy(800 + i*400, 60, '#4a148c');
+        }
+    }
+
+    function buildSky() {
+        currentScene = 'sky'; checkpoint = 'sky'; worldWidth = 10000;
+        world.style.width = worldWidth + "px";
+        clearWorld(); document.body.className = 'sky-bg';
+        document.getElementById('ground').style.display = 'none';
+        document.getElementById('loc').innerText = "Céu (Flappy Pizza)";
+        posX = 150; posY = 500; velY = 0; velX = 0;
+
+        // MENOS NUVENS (Reduzi de 50 para 25)
+        for(let i=0; i<25; i++) {
+            let n = document.createElement('div');
+            n.className = (i * 400 > 8000) ? 'nuvem cinza' : 'nuvem';
+            n.style.left = (1200 + i * 400) + 'px';
+            n.style.bottom = (20 + Math.random() * 60) + '%';
+            n.dataset.dir = 1; world.appendChild(n);
+            
+            let c = document.createElement('div'); c.className = 'coin';
+            c.style.left = (1250 + i * 400) + 'px'; c.style.bottom = (Math.random() * 400 + 200) + 'px';
+            world.appendChild(c);
+        }
+    }
+
+    function createPlat(x, y, w) {
+        let p = document.createElement('div'); p.className = 'platform';
+        p.style.left = x + 'px'; p.style.bottom = y + 'px'; p.style.width = w + 'px'; p.style.height = '25px';
+        world.appendChild(p);
+    }
+
+    function createEnemy(x, y, color) {
+        let e = document.createElement('div'); e.className = 'enemy';
+        e.style.backgroundColor = color; e.style.left = x + 'px'; e.style.bottom = y + 'px'; e.dataset.dir = 1;
+        world.appendChild(e);
+    }
+
+    function handleJump() {
+        if(!isAlive) return;
+        if(currentScene === 'sky') {
+            velY = 10;
+            velX = 4.5; // PIZZA MAIS DEVAGAR (Reduzi de 8 para 4.5)
+        } else if(!isJumping) {
+            velY = jumpForce; isJumping = true;
+        }
+    }
+
+    function takeDamage() {
+        if (isInvincible || !isAlive) return;
+        lives--; updateHUD();
+        if (lives <= 0) die("MORREU!");
+        else { isInvincible = true; player.style.opacity = "0.4"; setTimeout(() => { isInvincible = false; player.style.opacity = "1"; }, 1000); }
+    }
+
+    function gameLoop() {
+        if (!isAlive) return;
+        
+        if(currentScene === 'sky') {
+            posX += velX;
+            velX *= 0.985; 
+        } else {
+            if (keys.left) posX -= speed;
+            if (keys.right) posX += speed;
+        }
+        
+        posX = Math.max(0, Math.min(posX, worldWidth - 60));
+        velY -= gravity; posY += velY;
+
+        if (currentScene !== 'sky') {
+            if (posY <= 60) { posY = 60; velY = 0; isJumping = false; }
+        } else {
+            if (posY < -100) { lives = 0; updateHUD(); die("CAIU NO VAZIO!"); }
         }
 
-        if (obX < -200) {
-          ob.remove();
-          obstacles.splice(index, 1);
-        }
+        const pR = player.getBoundingClientRect();
 
-        if (checkCollision(player, ob)) {
-          let causa = ob.classList.contains("aviao") ? "aviao" : 
-                      ob.classList.contains("bola") ? "bola" : 
-                      ob.classList.contains("chuva") ? "chuva" : "nuvem";
-          endGame(causa);
-        }
-      });
+        document.querySelectorAll('.platform').forEach(plat => {
+            const platR = plat.getBoundingClientRect();
+            if (velY <= 0 && isColliding(pR, platR) && (pR.bottom - velY) >= platR.top) {
+                posY = parseFloat(plat.style.bottom) + 25; velY = 0; isJumping = false;
+            }
+        });
 
-      requestAnimationFrame(update);
+        document.querySelectorAll('.coin').forEach(c => {
+            if (isColliding(pR, c.getBoundingClientRect())) { c.remove(); score++; updateHUD(); }
+        });
+
+        document.querySelectorAll('.spike, .enemy, .nuvem').forEach(danger => {
+            const dR = danger.getBoundingClientRect();
+            if (isColliding(pR, dR)) {
+                if (velY < 0 && pR.bottom < dR.top + 20) {
+                    if(!danger.classList.contains('nuvem')) danger.remove(); 
+                    velY = 12;
+                } else { takeDamage(); }
+            }
+        });
+
+        if(currentScene === 'surface' && posX > 7780) buildCave();
+        else if(currentScene === 'cave' && posX > 7780) buildSky();
+
+        player.style.left = posX + 'px'; player.style.bottom = posY + 'px';
+        let camX = -posX + window.innerWidth / 2;
+        world.style.transform = `translateX(${Math.min(0, Math.max(camX, -(worldWidth - window.innerWidth)))}px)`;
+
+        document.querySelectorAll('.enemy, .nuvem').forEach(el => {
+            let x = parseFloat(el.style.left);
+            let d = parseFloat(el.dataset.dir);
+            x += d * (currentScene === 'sky' ? 2 : 1.5);
+            if (x > worldWidth || x < 0) el.dataset.dir = -d;
+            el.style.left = x + 'px';
+        });
+
+        requestAnimationFrame(gameLoop);
     }
 
-    function checkCollision(a, b) {
-      const aRect = a.getBoundingClientRect();
-      const bRect = b.getBoundingClientRect();
-      return !(aRect.top + 15 > bRect.bottom || aRect.bottom - 15 < bRect.top || 
-               aRect.right - 15 < bRect.left || aRect.left + 15 > bRect.right);
-    }
+    function isColliding(a, b) { return !(a.right < b.left || a.left > b.right || a.bottom < b.top || a.top > b.bottom); }
+    function die(msg) { isAlive = false; document.getElementById('death-msg').innerText = msg; document.getElementById('game-over').style.display = 'flex'; }
 
-    function endGame(causa) {
-      isGameOver = true;
-      const msg = document.getElementById('death-msg');
-      if (causa === "aviao") msg.innerText = "A turbina do avião sugou a pizza!";
-      else if (causa === "bola") msg.innerText = "Acertou uma bola colorida!";
-      else if (causa === "chuva") msg.innerText = "A Nuvem Malvada te fritou!";
-      else if (causa === "CHÃO") msg.innerText = "Pizza no chão não dá!";
-      else msg.innerText = "Fim da linha!";
-      gameOverMsg.style.display = 'block';
-    }
+    document.getElementById('retry-btn').onclick = () => {
+        lives = 3; updateHUD(); isAlive = true; isInvincible = false; player.style.opacity = "1";
+        document.getElementById('game-over').style.display = 'none';
+        if (checkpoint === 'sky') buildSky(); else if (checkpoint === 'cave') buildCave(); else buildSurface();
+        gameLoop();
+    };
 
-    function spawner() {
-      if (isGameOver) return;
-      createObstacle();
-      let timer = xp >= 300 ? 600 : (xp >= 200 ? 900 : 1500);
-      setTimeout(spawner, timer);
-    }
+    const setupBtn = (id, k) => {
+        const b = document.getElementById(id);
+        b.onmousedown = b.ontouchstart = (e) => { e.preventDefault(); if(k==='up') handleJump(); else keys[k]=true; };
+        b.onmouseup = b.ontouchend = () => { if(k!=='up') keys[k]=false; };
+    };
+    setupBtn('btnLeft','left'); setupBtn('btnRight','right'); setupBtn('btnUp','up');
+    window.onkeydown = (e) => { if(e.key === "ArrowLeft") keys.left = true; if(e.key === "ArrowRight") keys.right = true; if(e.key === "ArrowUp" || e.key === " ") handleJump(); };
+    window.onkeyup = (e) => { if(e.key === "ArrowLeft") keys.left = false; if(e.key === "ArrowRight") keys.right = false; };
 
-    spawner();
-    update();
-  </script>
+    buildSurface();
+    gameLoop();
+</script>
 </body>
 </html>
